@@ -1,3 +1,38 @@
+# Gimme Creds
+
+Gimme creds is inspired by gimme-aws-creds and syntax inspired by gitlab ci.
+
+Run a simple command like this:
+`gimme-creds env devops`
+and with a readable config file like this:
+```yaml
+env:
+  devops:
+    import:
+      - aws devops
+      - vault devops
+      - keycloak devops
+
+aws:
+  devops:
+    script:
+      - gimme-aws-creds -p devops
+
+vault:
+  devops:
+    env:
+      VAULT_ADDR: "https://vault.mydomain.com"
+    script:
+      - vault login -method oidc -path keycloak
+
+keycloak:
+  devops:
+    env:
+      KEYCLOAK_USER: username
+      KEYCLOAK_PASSWORD: "my-password"
+```
+have everything setup for you when you work with multiple sets of credentials.
+
 ## Command Syntax
 
 "gimme-creds" [GROUP_NAME]+ [PROFILE_NAME]? [-a ARGS]?
