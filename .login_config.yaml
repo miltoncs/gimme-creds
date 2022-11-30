@@ -1,0 +1,29 @@
+
+# TEST
+
+test:
+  extra:
+    default:
+      import:
+        - test extra profile3
+      script:
+        - echo "Script for test/default. Args:'{}'"
+    argTest:
+      script:
+        - echo "your args are '{}'"
+    profile1:
+      import:
+        - test extra argTest -a correct
+      script:
+        - echo "Script for test/profile1"
+    profile2:
+      script:
+        - echo "Script for test/profile2"
+    profile3:
+      import:
+        - test extra profile1
+        - test extra profile2
+      env:
+        PROFILE3: "profile 3"
+      script:
+        - echo "and me! I am $PROFILE3!"

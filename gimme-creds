@@ -1,0 +1,87 @@
+#!/bin/zsh
+
+CREDS="$HOME/.login_config"
+
+join_by() { 
+  local IFS="$1"; shift; echo "$*"
+}
+
+yamlExists() {
+  yq --exit-status "$1" "$CREDS" &>/dev/null
+  return $?
+}
+
+isProfile() {
+  yamlExists "${1}.import" || yamlExists "${1}.env" || yamlExists "${1}.script"
+  return $?
+}
+
+gimme-creds() {
+#  set -x # for debugging
+
+  given_path=$(echo "$@" | awk -F' -a ' '{ print $1 }')
+  passthru_args=$(echo "$@" | grep -Po "(?<= -a ).*")
+
+  if [[ -z $given_path ]]; then
+    echo "You must give a path to the profile in $CREDS."
+    return 3
+  fi
+
+  some_path=""
+  # shellcheck disable=SC2013
+  for word in $(awk '{ print $0 }' <<< $given_path); do
+    some_path="${some_path}.$(tr -d '[:space:]' <<< "$word")"
+  done
+
+  if ! yamlExists "$some_path"; then
+    echo "Could not find group or profile '${some_path}', check $CREDS"
+    return 2
+  fi
+
+  current_path=$some_path
+
+  while ! isProfile "$current_path"; do
+    if [[ $(yq "${current_path} | keys | length" "$CREDS") == "1" ]]; then
+      only_child=$(yq "${current_path} | keys | .[0]" "$CREDS")
+      current_path="${current_path}.${only_child}"
+    elif yamlExists "${current_path}.default"; then
+      current_path="${current_path}.default"
+    else
+      echo "Could not find a profile under ${current_path}. Available profiles:"
+      yq -M ".${current} | keys" "$CREDS"
+      return 1
+    fi
+  done
+
+  if ! yamlExists "$current_path"; then
+    echo "Internal Error! I picked an invalid path: $current_path"
+  fi
+  
+  profile_path=$current_path
+
+  if yamlExists "${profile_path}.import"; then
+    varname="saved_profile_path_$(md5 <<< "$@")"; declare "$varname"="$profile_path"
+    varname="saved_passthru_args_$(md5 <<< "$@")"; declare "$varname"="$passthru_args"
+    yq "${profile_path}.import | to_entries | .[] | .value" "$CREDS" | while read -r import_path_and_args; do
+      # shellcheck disable=SC2086
+      gimme-creds $import_path_and_args
+    done
+    # only works in zsh; use ${!varname} in bash for dynamic variable name expansion
+    varname="saved_profile_path_$(md5 <<< "$@")"; profile_path=${(P)${:-$varname}}
+    varname="saved_passthru_args_$(md5 <<< "$@")"; passthru_args=${(P)${:-$varname}}
+  fi
+  
+  if yamlExists "${profile_path}.env"; then
+    yq "${profile_path}.env" "$CREDS" | while read -r line; do
+      key=$(yq 'keys | .[0]' <<< "$line")
+      value=$(yq 'to_entries | .[0] | .value' <<< "$line")
+      export "${key}"="$value"
+    done
+  fi
+
+  if yamlExists "${profile_path}.script"; then
+    yq "${profile_path}.script | to_entries | .[] | .value" "$CREDS" | while read -r line; do
+      bash -c "${line//{\}/$passthru_args}"
+    done
+  fi
+}
