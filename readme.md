@@ -31,7 +31,7 @@ keycloak:
       KEYCLOAK_USER: username
       KEYCLOAK_PASSWORD: "my-password"
 ```
-have everything setup for you when you work with multiple sets of credentials.
+to have three sets of credentials setup for you when working on a project.
 
 ## Command Syntax
 
